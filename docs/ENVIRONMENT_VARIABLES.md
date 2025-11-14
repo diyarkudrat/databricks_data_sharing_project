@@ -1,14 +1,17 @@
 # Environment Variables Configuration
 
-This document describes the environment variables needed for your Next.js application to connect to Databricks.
+This document describes the environment variables needed for:
 
-## Setup Instructions
+- The **backend** service that connects to Databricks
+- The **Next.js frontend** that talks to the backend
 
-1. Create a file named `.env.local` in your project root directory
-2. Copy the template below and fill in your actual values
-3. Never commit `.env.local` to version control (it should be in `.gitignore`)
+## Backend Service (`backend/.env`)
 
-## Environment Variables Template
+1. In the `backend/` directory, copy `.env.example` to `.env`
+2. Fill in your actual Databricks values
+3. Ensure `.env` is listed in `backend/.gitignore` (already configured)
+
+### Backend Environment Variables Template
 
 ```bash
 # Databricks Connection Configuration
@@ -29,6 +32,22 @@ DATABRICKS_TOKEN=dapi...your-token-here...
 # Find in: SQL Warehouses → [Your Warehouse] → Connection Details → HTTP Path
 # Format: /sql/1.0/warehouses/xxxxxxxxxxxxxxxx
 DATABRICKS_HTTP_PATH=/sql/1.0/warehouses/xxxxxxxxxxxxxxxx
+
+# Port for the backend HTTP server
+PORT=4000
+```
+
+## Frontend (`webapp/.env.local`)
+
+1. In the `webapp/` directory, copy `.env.example` to `.env.local`
+2. Set the URL of your backend service
+3. `.env.local` is already gitignored by Next.js
+
+### Frontend Environment Variables Template
+
+```bash
+# URL of the backend Databricks service
+NEXT_PUBLIC_BACKEND_URL=http://localhost:4000
 ```
 
 ## How to Get These Values
@@ -64,16 +83,26 @@ DATABRICKS_HTTP_PATH=/sql/1.0/warehouses/xxxxxxxxxxxxxxxx
 
 ## Verifying Your Configuration
 
-After setting up your `.env.local` file, you can verify the connection by:
+### Backend
 
-1. Starting your Next.js development server:
+1. From `backend/`:
    ```bash
    npm run dev
    ```
+2. Hit the health endpoint:
+   ```bash
+   curl http://localhost:4000/health
+   ```
+3. Optionally, send a test query to `/api/query` after your Databricks creds are set.
 
-2. Making a test API call to your `/api/query` endpoint
+### Frontend
 
-3. Checking the server logs for any connection errors
+1. Ensure `NEXT_PUBLIC_BACKEND_URL` points to your running backend.
+2. From `webapp/`:
+   ```bash
+   npm run dev
+   ```
+3. Use the UI (or a simple fetch call) to hit the backend API and verify that data flows end-to-end.
 
 ## Troubleshooting
 

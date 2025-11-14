@@ -84,11 +84,11 @@ Personal Access Tokens (PAT) are used to authenticate API requests from your ser
 
 ## 5. Connection Details for Your Application
 
-You now have all the information needed to connect from your Next.js app.
+You now have all the information needed to connect from your backend service.
 
-### Environment Variables Format
+### Backend Environment Variables Format
 
-Create a `.env.local` file in your project root with:
+In the `backend/` service, create a `.env` file (or copy `backend/.env.example` to `.env`) with:
 
 ```bash
 # Your Databricks workspace URL
@@ -141,17 +141,17 @@ LIMIT 20;
 3. If you see weather data results, you're all set!
 
 ### From Your Application:
-Once you implement the API routes in your Next.js app, you'll be able to:
-- Query the warehouse programmatically
-- Fetch results as JSON
+Once you implement the backend service and its REST API routes, and connect your Next.js frontend to it, you'll be able to:
+- Query the warehouse programmatically from the backend
+- Fetch results as JSON via the backend API
 - Display data in your frontend
 
 ## Next Steps
 
 Now that your Databricks workspace is configured:
-1. Proceed to implement the Next.js API routes (`/app/api/`)
-2. Create the Databricks client library (`/lib/databricks/client.ts`)
-3. Build frontend components to display query results
+1. Scaffold the Next.js frontend in `webapp/` (see `step-2-next-js-app-setup.md`)
+2. Implement the backend Databricks service in `backend/` (see `step-3-backend-service-setup.md`)
+3. Build frontend components to display query results from the backend API
 
 ## Troubleshooting
 

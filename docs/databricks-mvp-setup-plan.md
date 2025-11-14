@@ -18,11 +18,11 @@ Create a step-by-step guide (`docs/DATABRICKS_SETUP.md`) covering:
 
 ### 2. Next.js Application Scaffold
 
-Initialize a new Next.js app in `/Users/diyarkudrat/databricks_data_sharing_project/`:
+Initialize a new Next.js app in `/Users/diyarkudrat/databricks_data_sharing_project/webapp`:
 
 - TypeScript configuration
 - App Router structure
-- Environment variable setup (`.env.local` for Databricks credentials)
+- Environment variable setup (`.env.local` for frontend configuration such as `NEXT_PUBLIC_BACKEND_URL`)
 - Basic project structure: `/app`, `/lib`, `/components`, `/types`
 
 ### 3. Backend Service for Databricks
@@ -95,32 +95,31 @@ Comprehensive documentation including:
 
 ```
 databricks-mvp/
-├── app/
-│   ├── api/
-│   │   ├── query/
-│   │   ├── tables/
-│   │   └── warehouses/
-│   ├── layout.tsx
-│   └── page.tsx
-├── components/
-│   ├── QueryEditor.tsx
-│   ├── ResultsTable.tsx
-│   └── ConnectionStatus.tsx
-├── lib/
-│   ├── databricks/
-│   │   ├── client.ts
-│   │   └── types.ts
-│   └── utils.ts
+├── webapp/
+│   ├── app/
+│   ├── components/
+│   ├── lib/
+│   ├── types/
+│   ├── .env.example
+│   └── package.json
+├── backend/
+│   ├── src/
+│   ├── .env.example
+│   └── package.json
 ├── docs/
-│   └── DATABRICKS_SETUP.md
-├── .env.example
-├── package.json
+│   ├── DATABRICKS_SETUP.md
+│   ├── step-2-next-js-app-setup.md
+│   └── step-3-backend-service-setup.md
 └── README.md
 ```
 
 ## Environment Variables
 
-```
+```bash
+# Frontend (webapp/.env.local)
+NEXT_PUBLIC_BACKEND_URL=http://localhost:4000
+
+# Backend (backend/.env)
 DATABRICKS_HOST=https://your-workspace.cloud.databricks.com
 DATABRICKS_TOKEN=dapi...
 DATABRICKS_HTTP_PATH=/sql/1.0/warehouses/...
