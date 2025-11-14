@@ -1,8 +1,25 @@
 import express from 'express';
 import type { ApiError } from './types';
 import { executeQuery } from './databricks/queryService';
+import { listWarehouses } from './databricks/warehousesService';
 
 export const apiRouter = express.Router();
+
+apiRouter.get('/warehouses', async (_req, res) => {
+  try {
+    const warehouses = await listWarehouses();
+    return res.json({ warehouses });
+  } catch (err) {
+    const error: ApiError = {
+      code: 'WAREHOUSES_FETCH_FAILED',
+      message: 'Failed to list Databricks warehouses.',
+      details: process.env.NODE_ENV === 'development' && err instanceof Error
+        ? err.message
+        : undefined,
+    };
+    return res.status(500).json({ error });
+  }
+});
 
 apiRouter.post('/query', async (req, res) => {
   const { sql } = req.body ?? {};
