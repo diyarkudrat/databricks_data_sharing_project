@@ -25,18 +25,18 @@ Initialize a new Next.js app in `/Users/diyarkudrat/databricks_data_sharing_proj
 - Environment variable setup (`.env.local` for Databricks credentials)
 - Basic project structure: `/app`, `/lib`, `/components`, `/types`
 
-### 3. Databricks SDK Integration
+### 3. Backend Service for Databricks
 
-Install and configure the Databricks SDK for Node.js:
+Create a separate Node.js + TypeScript backend service (for example, in a `backend/` directory) that owns all communication with Databricks:
 
-- Set up authentication using PAT tokens
-- Create a connection utility (`/lib/databricks/client.ts`)
-- Implement error handling and retry logic
-- Add TypeScript types for Databricks responses
+- Install and configure the `@databricks/sql` SDK
+- Configure environment variables for Databricks credentials
+- Implement a Databricks client and query service with error handling and retry logic
+- Define TypeScript types for backend responses
 
-### 4. Backend API Routes
+### 4. Backend REST API Routes
 
-Build Next.js API routes (`/app/api/`) for:
+In the backend service, build REST endpoints that the Next.js app will call:
 
 - **GET /api/warehouses** - List available warehouses
 - **GET /api/tables** - Retrieve table metadata

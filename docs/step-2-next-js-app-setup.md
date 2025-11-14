@@ -2,7 +2,7 @@
 
 ## Approach
 
-Initialize a Next.js 14+ application using `create-next-app` in a `webapp/` subdirectory with TypeScript, App Router, Tailwind CSS, and ESLint. Then configure the project structure and environment variables for Databricks credentials.
+Initialize a Next.js 14+ application using `create-next-app` in a `webapp/` subdirectory with TypeScript, App Router, Tailwind CSS, and ESLint. Then configure the project structure and environment variables for talking to the separate backend service.
 
 ## Implementation Tasks
 
@@ -30,9 +30,7 @@ Create two files in `webapp/`:
 
 **`.env.example`** - Template for required environment variables:
 ```bash
-DATABRICKS_HOST=https://your-workspace.cloud.databricks.com
-DATABRICKS_TOKEN=dapi...
-DATABRICKS_HTTP_PATH=/sql/1.0/warehouses/...
+NEXT_PUBLIC_BACKEND_URL=http://localhost:4000
 ```
 
 **`.env.local`** - Local development environment file (will be gitignored automatically by Next.js).
