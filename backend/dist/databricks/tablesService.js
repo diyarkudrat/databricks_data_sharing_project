@@ -3,9 +3,16 @@ Object.defineProperty(exports, "__esModule", { value: true });
 exports.listTables = listTables;
 const queryService_1 = require("./queryService");
 async function listTables(options = {}) {
-    const { schema } = options;
-    // For the MVP we use SHOW TABLES, optionally scoped to a schema/database.
-    const sql = schema ? `SHOW TABLES IN ${schema}` : 'SHOW TABLES';
+    const { catalog, schema } = options;
+    // For the MVP we use SHOW TABLES, optionally scoped to a schema or catalog.schema.
+    let target = '';
+    if (catalog && schema) {
+        target = `${catalog}.${schema}`;
+    }
+    else if (schema) {
+        target = schema;
+    }
+    const sql = target ? `SHOW TABLES IN ${target}` : 'SHOW TABLES';
     const result = await (0, queryService_1.executeQuery)(sql);
     // Try to locate indices for schema/catalog and table name columns based on
     // common Databricks column names.
@@ -20,7 +27,7 @@ async function listTables(options = {}) {
             ? row[nameIndex]
             : row[0];
         return {
-            catalog: null,
+            catalog: catalog ?? null,
             schema: schemaValue,
             name: nameValue ?? '',
             comment: null,

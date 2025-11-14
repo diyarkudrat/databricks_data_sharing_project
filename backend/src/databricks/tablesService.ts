@@ -7,15 +7,22 @@ export interface ListTablesOptions {
 }
 
 export async function listTables(options: ListTablesOptions = {}): Promise<TableInfo[]> {
-  const { schema } = options;
+  const { catalog, schema } = options;
 
-  // For the MVP we use SHOW TABLES, optionally scoped to a schema/database.
-  const sql = schema ? `SHOW TABLES IN ${schema}` : 'SHOW TABLES';
+  // For the MVP we use SHOW TABLES, optionally scoped to a schema or catalog.schema.
+  let target = '';
+  if (catalog && schema) {
+    target = `${catalog}.${schema}`;
+  } else if (schema) {
+    target = schema;
+  }
+
+  const sql = target ? `SHOW TABLES IN ${target}` : 'SHOW TABLES';
 
   const result = await executeQuery(sql);
 
   // Try to locate indices for schema/catalog and table name columns based on
-  // common Databricks column names.
+  // common Databricks column names. This is used when rows are arrays.
   const lowerNames = result.columns.map((c) => c.name.toLowerCase());
 
   const schemaIndex = lowerNames.findIndex((n) =>
@@ -25,19 +32,47 @@ export async function listTables(options: ListTablesOptions = {}): Promise<Table
     ['tablename', 'table_name', 'name'].includes(n),
   );
 
-  return result.rows.map((row) => {
-    const schemaValue =
-      schemaIndex >= 0 && schemaIndex < row.length
-        ? (row[schemaIndex] as string | null)
-        : schema ?? null;
+  return result.rows.map((rawRow) => {
+    const row: any = rawRow;
 
-    const nameValue =
-      nameIndex >= 0 && nameIndex < row.length
-        ? (row[nameIndex] as string | null)
-        : (row[0] as string | null);
+    let schemaValue: string | null = schema ?? null;
+    let nameValue: string | null = null;
+
+    if (Array.isArray(row)) {
+      if (schemaIndex >= 0 && schemaIndex < row.length) {
+        schemaValue = row[schemaIndex] as string | null;
+      }
+
+      if (nameIndex >= 0 && nameIndex < row.length) {
+        nameValue = row[nameIndex] as string | null;
+      } else {
+        nameValue = row[0] as string | null;
+      }
+    } else if (row && typeof row === 'object') {
+      // Some Databricks SHOW TABLES results (e.g., under samples) return rows
+      // as objects like { database: 'accuweather', tableName: 'forecast_...' }.
+      const dbCandidate =
+        (row.database as string | undefined) ??
+        (row.databaseName as string | undefined) ??
+        (row.schema as string | undefined) ??
+        (row.namespace as string | undefined);
+
+      if (!schema && dbCandidate) {
+        schemaValue = dbCandidate;
+      }
+
+      const tableCandidate =
+        (row.tableName as string | undefined) ??
+        (row.name as string | undefined) ??
+        (row.tablename as string | undefined);
+
+      if (tableCandidate) {
+        nameValue = tableCandidate;
+      }
+    }
 
     return {
-      catalog: null,
+      catalog: catalog ?? null,
       schema: schemaValue,
       name: nameValue ?? '',
       comment: null,

@@ -21,7 +21,7 @@ export default async function Home() {
         <h1 className="mb-4 text-2xl font-semibold text-zinc-900 dark:text-zinc-50">
           Databricks Warehouses
         </h1>
-        <p className="mb-6 text-sm text-zinc-600 dark:text-zinc-400">
+        <p className="mb-4 text-sm text-zinc-600 dark:text-zinc-400">
           This page calls the backend <code>/api/warehouses</code> endpoint and
           displays the list of warehouse names.
         </p>
@@ -61,6 +61,15 @@ export default async function Home() {
             ))}
           </ul>
         )}
+
+        <div className="mt-6">
+          <a
+            href="/accuweather"
+            className="inline-flex items-center rounded-md border border-zinc-300 px-3 py-1.5 text-xs font-medium text-zinc-800 transition hover:bg-zinc-50 dark:border-zinc-600 dark:text-zinc-100 dark:hover:bg-zinc-800"
+          >
+            View AccuWeather sample data &rarr;
+          </a>
+        </div>
       </section>
 
       <QueryRunner />

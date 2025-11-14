@@ -43,23 +43,51 @@ export async function executeQuery(
         runAsync: false,
       });
 
-      const allRows: unknown[][] = (await operation.fetchAll?.()) ?? [];
+      const fetchedRows: unknown[] = (await operation.fetchAll?.()) ?? [];
 
       const metaColumns: any[] =
         operation.getSchema?.().columns ??
         operation.metadata?.columns ??
         [];
 
-      const columns: Column[] = metaColumns.map((col: any) => ({
-        name: col.name ?? '',
-        type: col.type ?? 'string',
-        nullable: col.nullable ?? null,
-      }));
+      let columns: Column[];
+      let rows: unknown[][];
+
+      if (metaColumns.length > 0) {
+        // Standard path: driver provides column metadata and rows as arrays.
+        columns = metaColumns.map((col: any) => ({
+          name: col.name ?? '',
+          type: col.type ?? 'string',
+          nullable: col.nullable ?? null,
+        }));
+        rows = fetchedRows as unknown[][];
+      } else if (fetchedRows.length > 0 && fetchedRows[0] && typeof fetchedRows[0] === 'object' && !Array.isArray(fetchedRows[0])) {
+        // Fallback path: some Databricks operations (e.g., SHOW TABLES IN samples.db)
+        // return rows as objects with no column metadata. Synthesize columns from keys
+        // and turn each row into an ordered array of cell values.
+        const firstRow = fetchedRows[0] as Record<string, unknown>;
+        const keys = Object.keys(firstRow);
+
+        columns = keys.map((name) => ({
+          name,
+          type: 'string',
+          nullable: null,
+        }));
+
+        rows = fetchedRows.map((raw) => {
+          const obj = raw as Record<string, unknown>;
+          return keys.map((k) => obj[k]);
+        });
+      } else {
+        // No metadata and no rows; return empty result.
+        columns = [];
+        rows = [];
+      }
 
       await operation.close?.();
       await session.close?.();
 
-      return { columns, rows: allRows };
+      return { columns, rows };
     } catch (error) {
       attempt += 1;
 

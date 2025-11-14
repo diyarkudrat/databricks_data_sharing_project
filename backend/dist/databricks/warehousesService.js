@@ -4,7 +4,12 @@ exports.listWarehouses = listWarehouses;
 const config_1 = require("../config");
 async function listWarehouses() {
     const config = (0, config_1.loadConfig)();
-    const url = new URL('/api/2.0/sql/warehouses', config.databricksHost);
+    // Ensure we have a fully qualified URL. The host in config is expected to be
+    // something like `dbc-xxxx.cloud.databricks.com` (without protocol).
+    const base = config.databricksHost.startsWith('http')
+        ? config.databricksHost
+        : `https://${config.databricksHost}`;
+    const url = new URL('/api/2.0/sql/warehouses', base);
     const response = await fetch(url.toString(), {
         method: 'GET',
         headers: {
