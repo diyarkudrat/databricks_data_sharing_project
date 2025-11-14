@@ -1,48 +1,33 @@
 # Databricks Workspace Setup Guide
 
-This guide will walk you through setting up a Databricks workspace, creating a SQL warehouse, and configuring authentication to query data from your personal server.
+This guide will walk you through accessing your Databricks Starter Space workspace and configuring authentication to query the AccuWeather sample data from your personal server.
 
-## 1. Create Databricks Workspace
+## 1. Access Your Databricks Starter Space
 
-### Option A: Databricks Community Edition (Free)
-1. Go to [databricks.com/try-databricks](https://databricks.com/try-databricks)
-2. Click "Get started for free"
-3. Sign up with your email
-4. Select "Community Edition"
-5. Verify your email and complete registration
-
-### Option B: AWS Trial (14-day free trial)
-1. Go to [databricks.com/try-databricks](https://databricks.com/try-databricks)
-2. Select "Start free trial"
-3. Choose "AWS" as your cloud provider
-4. Follow the signup wizard
-5. Note: Requires a credit card but won't charge during trial
+Databricks automatically creates a **"Starter Space"** workspace for trial accounts with:
+- ✅ Sample data already loaded (AccuWeather weather data)
+- ✅ SQL warehouse pre-configured
+- ✅ Ready to query immediately
 
 ### Get Your Workspace URL
-After signup, your workspace URL will look like:
-- Community Edition: `https://community.cloud.databricks.com`
-- AWS Trial: `https://dbc-xxxxxxxx-xxxx.cloud.databricks.com`
+Your workspace URL is in your browser's address bar when logged in:
+- Format: `https://dbc-xxxxxxxx-xxxx.cloud.databricks.com`
 
 **Save this URL - you'll need it for API calls.**
 
-## 2. Create SQL Warehouse
+## 2. Access Your SQL Warehouse
 
-A SQL warehouse is required to execute queries.
+Your Starter Space includes a pre-configured SQL warehouse.
 
 ### Steps:
-1. Log into your Databricks workspace
-2. Click on **SQL Warehouses** in the left sidebar (under "SQL" section)
-   - If you don't see it, click the switcher in the top-left and select "SQL"
-3. Click **"Create SQL Warehouse"**
-4. Configure the warehouse:
-   - **Name**: `demo-warehouse` (or any name you prefer)
-   - **Cluster size**: Select **Starter** (smallest/cheapest option)
-   - **Auto Stop**: Keep default (10 minutes)
-5. Click **"Create"**
-6. Wait for the warehouse to start (shows green "Running" status)
+1. In your Databricks workspace, click the **persona switcher** in the top-left
+2. Select **"SQL"**
+3. Click **"SQL Warehouses"** in the left sidebar
+4. You should see an existing warehouse (from Starter Space)
+5. If it's stopped, click on it and then click **"Start"**
 
 ### Get HTTP Path:
-1. Click on your warehouse name to open details
+1. Click on your warehouse name to view details
 2. Go to the **"Connection details"** tab
 3. Copy the **"HTTP Path"** - it looks like:
    ```
@@ -50,51 +35,34 @@ A SQL warehouse is required to execute queries.
    ```
 4. **Save this HTTP Path - you'll need it for API authentication.**
 
-## 3. Create Sample Table
+## 3. Explore the AccuWeather Sample Data
 
-Let's create a simple table with sample data to test queries.
+Your Starter Space includes ready-to-use AccuWeather weather data.
 
-### Steps:
-1. In your Databricks workspace, click **"SQL Editor"** in the left sidebar
-2. Copy and paste this SQL script:
+### View the Sample Data:
+1. Click **"SQL Editor"** in the left sidebar
+2. In the left **Catalog** browser panel, expand:
+   - `samples` (catalog)
+   - `accuweather` (schema)
+   - You'll see the weather data table(s)
+
+### Test Query:
+Run this to see the data structure and sample rows:
 
 ```sql
--- Create a sample sales table
-CREATE TABLE IF NOT EXISTS default.sales_data (
-  id INT,
-  product_name STRING,
-  category STRING,
-  price DECIMAL(10,2),
-  quantity INT,
-  sale_date DATE,
-  region STRING
-);
-
--- Insert sample data
-INSERT INTO default.sales_data VALUES
-(1, 'Laptop Pro', 'Electronics', 1299.99, 2, '2024-01-15', 'North America'),
-(2, 'Wireless Mouse', 'Electronics', 29.99, 5, '2024-01-16', 'Europe'),
-(3, 'Office Chair', 'Furniture', 299.99, 1, '2024-01-17', 'Asia'),
-(4, 'Desk Lamp', 'Furniture', 49.99, 3, '2024-01-18', 'North America'),
-(5, 'USB Cable', 'Electronics', 12.99, 10, '2024-01-19', 'Europe'),
-(6, 'Monitor 27"', 'Electronics', 399.99, 2, '2024-01-20', 'Asia'),
-(7, 'Keyboard', 'Electronics', 79.99, 4, '2024-01-21', 'North America'),
-(8, 'Standing Desk', 'Furniture', 599.99, 1, '2024-01-22', 'Europe'),
-(9, 'Webcam HD', 'Electronics', 89.99, 2, '2024-01-23', 'Asia'),
-(10, 'Notebook Set', 'Office Supplies', 15.99, 8, '2024-01-24', 'North America');
+-- View sample weather data
+SELECT * FROM samples.accuweather.daily_weather_data LIMIT 10;
 ```
 
-3. Select your warehouse from the dropdown at the top
-4. Click **"Run"** (or press Cmd/Ctrl + Enter)
-5. You should see "Commands completed successfully"
+### Explore the Schema:
+See what columns are available:
 
-### Verify the data:
-Run this query to confirm:
 ```sql
-SELECT * FROM default.sales_data;
+-- Get column information
+DESCRIBE samples.accuweather.daily_weather_data;
 ```
 
-You should see 10 rows of data.
+This sample data is perfect for testing your Next.js integration!
 
 ## 4. Generate Access Token (PAT)
 
@@ -135,7 +103,7 @@ DATABRICKS_HTTP_PATH=/sql/1.0/warehouses/xxxxxxxxxxxxxxxx
 
 ### Example REST API Call
 
-Here's how to query your data using cURL (to test connectivity):
+Here's how to query the AccuWeather data using cURL (to test connectivity):
 
 ```bash
 curl -X POST \
@@ -144,28 +112,33 @@ curl -X POST \
   -H "Content-Type: application/json" \
   -d '{
     "warehouse_id": "your-warehouse-id",
-    "statement": "SELECT * FROM default.sales_data LIMIT 5",
+    "statement": "SELECT * FROM samples.accuweather.daily_weather_data LIMIT 5",
     "wait_timeout": "30s"
   }'
 ```
 
-**Note**: Extract the warehouse ID from your HTTP path (the part after `/warehouses/`).
+**Note**: Extract the warehouse ID from your HTTP path (the part after `/warehouses/`)
 
 ## 6. Test Your Setup
 
 ### In Databricks UI:
-1. Go back to SQL Editor
-2. Run a test query:
-   ```sql
-   SELECT 
-     category,
-     COUNT(*) as total_items,
-     SUM(price * quantity) as total_revenue
-   FROM default.sales_data
-   GROUP BY category
-   ORDER BY total_revenue DESC;
-   ```
-3. If you see results grouped by category, you're all set!
+1. Go to **SQL Editor**
+2. Run this test query to verify everything works:
+
+```sql
+-- Get weather data for specific cities
+SELECT 
+  date,
+  city,
+  temp_max,
+  temp_min,
+  precipitation
+FROM samples.accuweather.daily_weather_data
+ORDER BY date DESC
+LIMIT 20;
+```
+
+3. If you see weather data results, you're all set!
 
 ### From Your Application:
 Once you implement the API routes in your Next.js app, you'll be able to:
@@ -192,21 +165,21 @@ Now that your Databricks workspace is configured:
 - Check that you're using the correct workspace URL
 
 ### "Table not found" error
-- Confirm you ran the CREATE TABLE script
-- Check you're using the correct catalog/schema: `default.sales_data`
-- Verify your warehouse has access permissions
+- Verify you're using the correct table name: `samples.accuweather.daily_weather_data`
+- Check the catalog browser in SQL Editor to confirm the table path
+- Ensure your warehouse has access permissions
 
 ### Connection timeout
-- For Community Edition, there may be rate limits
-- Trial workspaces should have better performance
 - Check your network/firewall isn't blocking Databricks
+- Ensure the warehouse is running (not stopped)
+- Trial workspaces should have good performance
 
 ## Cost Management Tips
 
-- **Auto Stop**: Warehouses auto-stop after 10 minutes (free tier)
-- **Compute**: Community Edition has limited compute - suitable for demos
-- **Trial**: AWS trial is free for 14 days, includes generous compute credits
-- **Monitoring**: Check the "Billing" section to track usage (trial accounts only)
+- **Auto Stop**: Your warehouse auto-stops after 10 minutes of inactivity
+- **Trial Period**: AWS trial is free for 14 days with generous compute credits
+- **Monitoring**: Check the "Billing" section to track usage during your trial
+- **Start/Stop Manually**: Stop the warehouse when not in use to conserve credits
 
 ---
 
