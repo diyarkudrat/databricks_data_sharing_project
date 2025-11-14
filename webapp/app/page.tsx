@@ -1,5 +1,6 @@
 import { fetchWarehouses } from "@/lib/backend";
 import type { Warehouse } from "@/types/warehouses";
+import { QueryRunner } from "@/components/QueryRunner";
 
 export default async function Home() {
   let warehouses: Warehouse[] = [];
@@ -15,7 +16,7 @@ export default async function Home() {
   }
 
   return (
-    <main className="flex min-h-screen flex-col items-center justify-center bg-zinc-50 px-6 py-16 font-sans dark:bg-black">
+    <main className="flex min-h-screen flex-col items-center bg-zinc-50 px-6 py-16 font-sans dark:bg-black">
       <section className="w-full max-w-xl rounded-lg bg-white p-6 shadow-sm dark:bg-zinc-900">
         <h1 className="mb-4 text-2xl font-semibold text-zinc-900 dark:text-zinc-50">
           Databricks Warehouses
@@ -61,6 +62,8 @@ export default async function Home() {
           </ul>
         )}
       </section>
+
+      <QueryRunner />
     </main>
   );
 }

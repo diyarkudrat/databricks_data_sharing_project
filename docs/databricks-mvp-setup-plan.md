@@ -44,15 +44,7 @@ In the backend service, build REST endpoints that the Next.js app will call:
 - **GET /api/query/[queryId]** - Poll query execution status
 - Proper error handling and logging
 
-### 5. Sample Data Creation
-
-Create a utility script to:
-
-- Generate sample datasets (e.g., sales transactions, user events)
-- Provide SQL scripts to create tables in Databricks
-- Document how to load data into the warehouse
-
-### 6. Frontend UI Components
+### 5. Frontend UI Components
 
 Build React components in `/components`:
 
@@ -62,7 +54,7 @@ Build React components in `/components`:
 - Warehouse connection status indicator
 - Simple, modern styling (Tailwind CSS)
 
-### 7. Main Dashboard Page
+### 6. Main Dashboard Page
 
 Create the main page (`/app/page.tsx`) that:
 
@@ -72,7 +64,7 @@ Create the main page (`/app/page.tsx`) that:
 - Renders query results in a formatted table
 - Handles async query execution patterns
 
-### 8. Documentation & README
+### 7. Documentation & README
 
 Comprehensive documentation including:
 
