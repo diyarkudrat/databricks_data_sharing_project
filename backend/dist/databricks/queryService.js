@@ -22,19 +22,26 @@ async function executeQuery(sql, options = {}) {
         try {
             // The SDK types are loosely modeled here using 'any' to avoid
             // tight coupling to a specific driver version.
-            const connection = await client.connect({
+            await client.connect({
                 host: config.databricksHost,
                 path: config.databricksHttpPath,
                 token: config.databricksToken,
             });
-            const queryResult = await connection.executeStatement(sql);
-            const allRows = (await queryResult.fetchAll?.()) ?? [];
-            const columns = (queryResult.metadata?.columns ?? []).map((col) => ({
+            const session = await client.openSession();
+            const operation = await session.executeStatement(sql, {
+                runAsync: false,
+            });
+            const allRows = (await operation.fetchAll?.()) ?? [];
+            const metaColumns = operation.getSchema?.().columns ??
+                operation.metadata?.columns ??
+                [];
+            const columns = metaColumns.map((col) => ({
                 name: col.name ?? '',
                 type: col.type ?? 'string',
                 nullable: col.nullable ?? null,
             }));
-            await connection.close?.();
+            await operation.close?.();
+            await session.close?.();
             return { columns, rows: allRows };
         }
         catch (error) {

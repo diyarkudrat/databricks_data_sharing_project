@@ -32,24 +32,32 @@ export async function executeQuery(
     try {
       // The SDK types are loosely modeled here using 'any' to avoid
       // tight coupling to a specific driver version.
-      const connection: any = await (client as any).connect({
+      await (client as any).connect({
         host: config.databricksHost,
         path: config.databricksHttpPath,
         token: config.databricksToken,
       });
 
-      const queryResult: any = await connection.executeStatement(sql);
-      const allRows: unknown[][] = (await queryResult.fetchAll?.()) ?? [];
+      const session: any = await (client as any).openSession();
+      const operation: any = await session.executeStatement(sql, {
+        runAsync: false,
+      });
 
-      const columns: Column[] = (queryResult.metadata?.columns ?? []).map(
-        (col: any) => ({
-          name: col.name ?? '',
-          type: col.type ?? 'string',
-          nullable: col.nullable ?? null,
-        }),
-      );
+      const allRows: unknown[][] = (await operation.fetchAll?.()) ?? [];
 
-      await connection.close?.();
+      const metaColumns: any[] =
+        operation.getSchema?.().columns ??
+        operation.metadata?.columns ??
+        [];
+
+      const columns: Column[] = metaColumns.map((col: any) => ({
+        name: col.name ?? '',
+        type: col.type ?? 'string',
+        nullable: col.nullable ?? null,
+      }));
+
+      await operation.close?.();
+      await session.close?.();
 
       return { columns, rows: allRows };
     } catch (error) {
