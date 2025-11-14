@@ -27,12 +27,25 @@ This is a hands-on learning project designed to understand:
 - **Databricks SQL SDK** - Official SDK for Node.js
 - **Tailwind CSS** - Modern styling
 
+## Project Structure
+
+- `webapp/` - Next.js application with TypeScript, Tailwind CSS, and Databricks integration
+- `docs/` - Setup guides and documentation
+
 ## Getting Started
 
 1. **Setup Databricks**: Follow the guide in [`docs/DATABRICKS_SETUP.md`](docs/DATABRICKS_SETUP.md)
-2. **Configure Environment**: See [`docs/ENVIRONMENT_VARIABLES.md`](docs/ENVIRONMENT_VARIABLES.md)
-3. **Install Dependencies**: Run `npm install`
-4. **Run Development Server**: Run `npm run dev`
+2. **Configure Environment**: Copy `webapp/.env.example` to `webapp/.env.local` and fill in your Databricks credentials
+3. **Install Dependencies**: 
+   ```bash
+   cd webapp
+   npm install
+   ```
+4. **Run Development Server**: 
+   ```bash
+   npm run dev
+   ```
+   Visit [http://localhost:3000](http://localhost:3000) to see the application
 
 ## Documentation
 
