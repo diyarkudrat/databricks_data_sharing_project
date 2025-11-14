@@ -3,7 +3,6 @@ import type { ApiError } from './types';
 import { executeQuery } from './databricks/queryService';
 import { listWarehouses } from './databricks/warehousesService';
 import { listTables } from './databricks/tablesService';
-import { queryAccuWeather } from './databricks/accuweatherService';
 import { listSampleSchemas } from './databricks/samplesService';
 import { listCatalogs } from './databricks/catalogsService';
 
@@ -165,57 +164,6 @@ apiRouter.post('/query', async (req, res) => {
     const error: ApiError = {
       code: 'QUERY_FAILED',
       message: 'Failed to execute query against Databricks.',
-      details: process.env.NODE_ENV === 'development' && err instanceof Error
-        ? err.message
-        : undefined,
-    };
-    return res.status(500).json({ error });
-  }
-});
-
-apiRouter.get('/accuweather', async (req, res) => {
-  const { city, startDate, endDate, limit } = req.query;
-
-  if (
-    Array.isArray(city) ||
-    Array.isArray(startDate) ||
-    Array.isArray(endDate) ||
-    Array.isArray(limit)
-  ) {
-    const error: ApiError = {
-      code: 'INVALID_REQUEST',
-      message: 'Only single values are allowed for city, startDate, endDate, and limit.',
-    };
-    return res.status(400).json({ error });
-  }
-
-  let parsedLimit: number | undefined;
-  if (typeof limit === 'string' && limit.trim() !== '') {
-    const asNumber = Number(limit);
-    if (!Number.isFinite(asNumber) || asNumber <= 0) {
-      const error: ApiError = {
-        code: 'INVALID_REQUEST',
-        message: '"limit" must be a positive number when provided.',
-      };
-      return res.status(400).json({ error });
-    }
-    parsedLimit = asNumber;
-  }
-
-  try {
-    const result = await queryAccuWeather({
-      city: city as string | undefined,
-      startDate: startDate as string | undefined,
-      endDate: endDate as string | undefined,
-      limit: parsedLimit,
-    });
-    return res.json({ result });
-  } catch (err) {
-    // eslint-disable-next-line no-console
-    console.error('Error querying AccuWeather sample data:', err);
-    const error: ApiError = {
-      code: 'ACCUEWEATHER_QUERY_FAILED',
-      message: 'Failed to query AccuWeather sample data.',
       details: process.env.NODE_ENV === 'development' && err instanceof Error
         ? err.message
         : undefined,
