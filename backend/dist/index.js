@@ -11,6 +11,12 @@ const config = (0, config_1.loadConfig)();
 const app = (0, express_1.default)();
 app.use((0, cors_1.default)());
 app.use(express_1.default.json());
+// Basic request logging for observability during development.
+app.use((req, _res, next) => {
+    // eslint-disable-next-line no-console
+    console.log(`${req.method} ${req.path}`);
+    next();
+});
 app.get('/health', (_req, res) => {
     res.json({ status: 'ok' });
 });

@@ -30,7 +30,7 @@ Extend the existing `backend/` service to expose a clear, typed REST API that th
   - `GET /api/warehouses` → returns `{ warehouses: Warehouse[] }` on success.
   - Returns `{ error: ApiError }` with appropriate HTTP status codes on failures.
 
-#### 3. Tables Endpoint: `GET /api/tables` (NOT STARTED)
+#### 3. Tables Endpoint: `GET /api/tables` (COMPLETED)
 
 - Decide on the simplest source for table metadata:
   - Option A (SQL-based, MVP-friendly): use the existing `executeQuery` helper with `SHOW TABLES IN <schema>` and map results into `TableInfo`.
@@ -42,7 +42,7 @@ Extend the existing `backend/` service to expose a clear, typed REST API that th
   - `GET /api/tables?catalog=...&schema=...` → returns `{ tables: TableInfo[] }`.
   - Validates query parameters and responds with `400` + `ApiError` when invalid.
 
-#### 4. Query Execution Endpoints: `POST /api/query` and Optional Polling (NOT STARTED)
+#### 4. Query Execution Endpoints: `POST /api/query` and Optional Polling (COMPLETED)
 
 - Refine the existing `POST /api/query` handler in `backend/src/api.ts`:
   - Request body: `{ sql: string, params?: Record<string, unknown> }` (keep flexible for future parameterization).
@@ -54,7 +54,7 @@ Extend the existing `backend/` service to expose a clear, typed REST API that th
   - Adjust `POST /api/query` to optionally operate in async mode and return `{ queryId, status }`.
   - Implement `GET /api/query/:queryId` that polls the Databricks statement endpoint and returns terminal status/results.
 
-#### 5. Error Handling, Logging, and Security Considerations (NOT STARTED)
+#### 5. Error Handling, Logging, and Security Considerations (COMPLETED)
 
 - Ensure all routes:
   - Validate inputs and return `400` with a structured `ApiError` for bad requests.
@@ -62,7 +62,7 @@ Extend the existing `backend/` service to expose a clear, typed REST API that th
 - Add basic logging for incoming requests and Databricks errors (for now, simple `console.log` / `console.error` in the backend; can be replaced later with structured logging).
 - Confirm that no Databricks secrets (`DATABRICKS_TOKEN`, etc.) are ever serialized into HTTP responses.
 
-#### 6. Documentation and Frontend Integration Hooks (NOT STARTED)
+#### 6. Documentation and Frontend Integration Hooks (COMPLETED)
 
 - Document the REST API routes and payloads briefly in this `step-4-backend-rest-api-creation.md` file:
   - Include example requests/responses for each endpoint.
