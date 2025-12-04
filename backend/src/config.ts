@@ -17,11 +17,21 @@ function requireEnv(name: string): string {
   return value;
 }
 
+/**
+ * Loads and validates backend configuration from environment variables.
+ * Throws an error if required variables are missing.
+ */
 export function loadConfig(): BackendConfig {
-  return {
+  const config: BackendConfig = {
     databricksHost: requireEnv('DATABRICKS_HOST'),
     databricksToken: requireEnv('DATABRICKS_TOKEN'),
     databricksHttpPath: requireEnv('DATABRICKS_HTTP_PATH'),
     port: Number(process.env.PORT) || 4000,
   };
+
+  if (isNaN(config.port)) {
+    throw new Error(`Invalid PORT: ${process.env.PORT}`);
+  }
+
+  return config;
 }

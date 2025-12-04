@@ -9,7 +9,7 @@ export interface ListTablesOptions {
 export async function listTables(options: ListTablesOptions = {}): Promise<TableInfo[]> {
   const { catalog, schema } = options;
 
-  // For the MVP we use SHOW TABLES, optionally scoped to a schema or catalog.schema.
+  // Construct target for SHOW TABLES
   let target = '';
   if (catalog && schema) {
     target = `${catalog}.${schema}`;
@@ -18,64 +18,51 @@ export async function listTables(options: ListTablesOptions = {}): Promise<Table
   }
 
   const sql = target ? `SHOW TABLES IN ${target}` : 'SHOW TABLES';
-
   const result = await executeQuery(sql);
 
-  // Try to locate indices for schema/catalog and table name columns based on
-  // common Databricks column names. This is used when rows are arrays.
-  const lowerNames = result.columns.map((c) => c.name.toLowerCase());
+  // Map results to TableInfo
+  return result.rows.map((row) => parseTableRow(row, result.columns, catalog, schema));
+}
 
-  const schemaIndex = lowerNames.findIndex((n) =>
-    ['database', 'namespace', 'schema'].includes(n),
-  );
-  const nameIndex = lowerNames.findIndex((n) =>
-    ['tablename', 'table_name', 'name'].includes(n),
-  );
-
-  return result.rows.map((rawRow) => {
-    const row: any = rawRow;
-
-    let schemaValue: string | null = schema ?? null;
-    let nameValue: string | null = null;
-
-    if (Array.isArray(row)) {
-      if (schemaIndex >= 0 && schemaIndex < row.length) {
-        schemaValue = row[schemaIndex] as string | null;
-      }
-
-      if (nameIndex >= 0 && nameIndex < row.length) {
-        nameValue = row[nameIndex] as string | null;
-      } else {
-        nameValue = row[0] as string | null;
-      }
-    } else if (row && typeof row === 'object') {
-      // Some Databricks SHOW TABLES results (e.g., under samples) return rows
-      // as objects like { database: 'accuweather', tableName: 'forecast_...' }.
-      const dbCandidate =
-        (row.database as string | undefined) ??
-        (row.databaseName as string | undefined) ??
-        (row.schema as string | undefined) ??
-        (row.namespace as string | undefined);
-
-      if (!schema && dbCandidate) {
-        schemaValue = dbCandidate;
-      }
-
-      const tableCandidate =
-        (row.tableName as string | undefined) ??
-        (row.name as string | undefined) ??
-        (row.tablename as string | undefined);
-
-      if (tableCandidate) {
-        nameValue = tableCandidate;
-      }
+/**
+ * Parses a single row from SHOW TABLES result into TableInfo.
+ * Handles both array-based (standard) and object-based (legacy/fallback) rows.
+ */
+function parseTableRow(
+  row: unknown[],
+  columns: { name: string }[],
+  defaultCatalog?: string,
+  defaultSchema?: string
+): TableInfo {
+  // Helper to find value by column name candidates
+  const getValue = (candidates: string[]): string | null => {
+    // 1. Try to find by column index match
+    const colIndex = columns.findIndex(c => candidates.includes(c.name.toLowerCase()));
+    if (colIndex >= 0 && colIndex < row.length) {
+      return String(row[colIndex]);
     }
+    return null;
+  };
 
-    return {
-      catalog: catalog ?? null,
-      schema: schemaValue,
-      name: nameValue ?? '',
-      comment: null,
-    } satisfies TableInfo;
-  });
+  // Schema resolution
+  let schemaValue = defaultSchema ?? null;
+  const foundSchema = getValue(['database', 'namespace', 'schema']);
+  if (foundSchema && !defaultSchema) {
+    schemaValue = foundSchema;
+  }
+
+  // Table Name resolution
+  let nameValue = getValue(['tablename', 'table_name', 'name']);
+  
+  // Fallback: if no column match, assume first column is table name (common in some JDBC/ODBC paths)
+  if (!nameValue && row.length > 0) {
+    nameValue = String(row[0]);
+  }
+
+  return {
+    catalog: defaultCatalog ?? null,
+    schema: schemaValue,
+    name: nameValue ?? '',
+    comment: null,
+  };
 }

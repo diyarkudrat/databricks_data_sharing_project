@@ -31,9 +31,29 @@ export interface TableInfo {
 
 export interface QueryRequest {
   sql: string;
+  /**
+   * Parameters to bind to the query.
+   * Currently reserved for future use.
+   */
   params?: Record<string, unknown>;
 }
 
 export interface QueryResponse {
   result: QueryResult;
+}
+
+export interface WarehousesResponse {
+  warehouses: Warehouse[];
+}
+
+export interface CatalogsResponse {
+  catalogs: string[];
+}
+
+export interface TablesResponse {
+  tables: TableInfo[];
+}
+
+export interface SampleSchemasResponse {
+  schemas: string[];
 }

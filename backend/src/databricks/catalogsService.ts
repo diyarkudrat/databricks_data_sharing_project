@@ -1,43 +1,57 @@
 import { executeQuery } from './queryService';
 
-// List catalog names visible in the connected SQL warehouse.
-// Returns an array of catalog name strings, not the raw query result.
+/**
+ * List catalog names visible in the connected SQL warehouse.
+ * Returns an array of catalog name strings.
+ */
 export async function listCatalogs(): Promise<string[]> {
   const sql = 'SHOW CATALOGS';
   const result = await executeQuery(sql);
 
-  // Try to locate the catalog-name column based on common Databricks column names.
+  // Robust column finding:
+  // 1. Try exact match for 'catalog_name' (standard).
+  // 2. Try 'catalog'.
+  // 3. Fallback to 'name'.
+  // 4. Absolute fallback to index 0.
   const lowerNames = result.columns.map((c) => c.name.toLowerCase());
-  let nameIndex = lowerNames.findIndex((n) =>
-    ['catalog_name', 'catalog', 'name'].includes(n),
-  );
-  if (nameIndex < 0) {
+  
+  const targetCol = ['catalog_name', 'catalog', 'name'];
+  let nameIndex = -1;
+
+  for (const candidate of targetCol) {
+    nameIndex = lowerNames.indexOf(candidate);
+    if (nameIndex >= 0) break;
+  }
+
+  if (nameIndex < 0 && result.columns.length > 0) {
     nameIndex = 0;
   }
 
-  const catalogs = result.rows.map((row, idx) => {
-    const cell = row[nameIndex] as unknown;
-    if (cell && typeof cell === 'object') {
-      const anyCell = cell as { catalog_name?: string; catalog?: string; name?: string };
-      const value = anyCell.catalog_name ?? anyCell.catalog ?? anyCell.name;
-      if (typeof value === 'string' && value.trim().length > 0) {
-        return value;
-      }
-      return JSON.stringify(cell);
-    }
-    return cell == null ? `row_${idx}` : String(cell);
-  });
+  const catalogs: string[] = [];
 
-  // Best-effort: ensure the well-known `samples` catalog (Delta Shares Received)
-  // is included if it is actually accessible in this workspace.
+  for (let i = 0; i < result.rows.length; i++) {
+    const row = result.rows[i];
+    const cell = row[nameIndex];
+
+    if (typeof cell === 'string' && cell.trim().length > 0) {
+      catalogs.push(cell);
+    } else if (cell && typeof cell === 'object') {
+      // Handle potential object-wrapped values (rare but possible in some drivers)
+      const val = (cell as any).toString();
+      if (val) catalogs.push(val);
+    }
+  }
+
+  // Best-effort: ensure the well-known `samples` catalog is included 
+  // if accessible, even if not returned by SHOW CATALOGS (e.g. shared catalogs).
   if (!catalogs.includes('samples')) {
     try {
       const probe = await executeQuery('SHOW SCHEMAS IN samples');
       if (probe.rows.length > 0) {
         catalogs.push('samples');
       }
-    } catch {
-      // If the probe fails (no permission or catalog not present), just ignore.
+    } catch (e) {
+      // Silence error; likely permission denied or catalog doesn't exist.
     }
   }
 

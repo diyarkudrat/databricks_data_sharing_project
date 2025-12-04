@@ -1,20 +1,35 @@
 import { DBSQLClient } from '@databricks/sql';
-import { loadConfig } from '../config';
 
 let cachedClient: DBSQLClient | null = null;
 
+/**
+ * Returns the singleton Databricks SQL client instance.
+ * Initializes a new client if one does not exist.
+ */
 export function getClient(): DBSQLClient {
   if (cachedClient) {
     return cachedClient;
   }
 
-  const config = loadConfig();
+  // Initialize the client. Connection details are provided
+  // when opening a session, not at instantiation time.
+  cachedClient = new DBSQLClient();
+  
+  return cachedClient;
+}
 
-  const client = new DBSQLClient();
-
-  // Connection configuration is applied when connecting in the query service.
-  // Keeping this module focused on client construction and reuse.
-
-  cachedClient = client;
-  return client;
+/**
+ * Closes the active client and clears the cache.
+ * Useful for graceful shutdowns or testing.
+ */
+export async function closeClient(): Promise<void> {
+  if (cachedClient) {
+    try {
+      await cachedClient.close();
+    } catch (error) {
+      console.error('Error closing Databricks client:', error);
+    } finally {
+      cachedClient = null;
+    }
+  }
 }
