@@ -1,0 +1,9 @@
+{
+  "dependencies": {
+    "snowflake-sdk": "^2.3.1",
+    "uuid": "^13.0.0"
+  },
+  "devDependencies": {
+    "@types/uuid": "^10.0.0"
+  }
+}

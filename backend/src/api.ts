@@ -5,6 +5,7 @@ import { listWarehouses } from './databricks/warehousesService';
 import { listTables } from './databricks/tablesService';
 import { listSampleSchemas } from './databricks/samplesService';
 import { listCatalogs } from './databricks/catalogsService';
+import { triggerJob, getRunStatus } from './databricks/jobsService';
 
 export const apiRouter = express.Router();
 
@@ -138,5 +139,33 @@ apiRouter.post('/query', async (req, res) => {
     return res.json({ result });
   } catch (err) {
     return handleApiError(res, err, 'QUERY_FAILED', 'Failed to execute query against Databricks');
+  }
+});
+
+apiRouter.post('/jobs/:jobId/run', async (req, res) => {
+  const { jobId } = req.params;
+  if (!jobId) {
+    return res.status(400).json({ error: { code: 'INVALID_REQUEST', message: 'Job ID is required' } });
+  }
+
+  try {
+    const result = await triggerJob(jobId);
+    return res.json(result);
+  } catch (err) {
+    return handleApiError(res, err, 'JOB_TRIGGER_FAILED', `Failed to trigger job ${jobId}`);
+  }
+});
+
+apiRouter.get('/jobs/runs/:runId', async (req, res) => {
+  const { runId } = req.params;
+  if (!runId) {
+    return res.status(400).json({ error: { code: 'INVALID_REQUEST', message: 'Run ID is required' } });
+  }
+
+  try {
+    const status = await getRunStatus(runId);
+    return res.json({ status });
+  } catch (err) {
+    return handleApiError(res, err, 'JOB_STATUS_FAILED', `Failed to get status for run ${runId}`);
   }
 });

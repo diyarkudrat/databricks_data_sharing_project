@@ -1,6 +1,7 @@
 import { fetchWarehouses } from "@/lib/backend";
 import type { Warehouse } from "@/types/warehouses";
 import { QueryRunner } from "@/components/QueryRunner";
+import { DataShareManager } from "@/components/DataShareManager";
 
 export default async function Home() {
   let warehouses: Warehouse[] = [];
@@ -64,6 +65,8 @@ export default async function Home() {
 
         {/* AccuWeather sample data link removed as part of simplifying the MVP UI. */}
       </section>
+
+      <DataShareManager />
 
       <QueryRunner />
     </main>

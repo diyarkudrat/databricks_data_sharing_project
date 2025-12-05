@@ -107,3 +107,45 @@ export async function fetchSampleSchemas(): Promise<string[]> {
   const data = (await res.json()) as SampleSchemasResponse;
   return data.schemas ?? [];
 }
+
+export interface JobRunResult {
+  run_id: number;
+  number_in_job: number;
+}
+
+export interface RunStatus {
+  run_id: number;
+  state: {
+    life_cycle_state: 'PENDING' | 'RUNNING' | 'TERMINATING' | 'TERMINATED' | 'SKIPPED' | 'INTERNAL_ERROR';
+    result_state?: 'SUCCESS' | 'FAILED' | 'TIMEDOUT' | 'CANCELED';
+    state_message?: string;
+  };
+}
+
+export async function triggerJob(jobId: string): Promise<JobRunResult> {
+  const res = await fetch(`${BACKEND_URL}/api/jobs/${jobId}/run`, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+    },
+  });
+
+  if (!res.ok) {
+    throw new Error(`Failed to trigger job: ${res.status}`);
+  }
+
+  return (await res.json()) as JobRunResult;
+}
+
+export async function getJobRunStatus(runId: string): Promise<RunStatus> {
+  const res = await fetch(`${BACKEND_URL}/api/jobs/runs/${runId}`, {
+    cache: 'no-store',
+  });
+
+  if (!res.ok) {
+    throw new Error(`Failed to get job status: ${res.status}`);
+  }
+
+  const data = await res.json();
+  return data.status as RunStatus;
+}

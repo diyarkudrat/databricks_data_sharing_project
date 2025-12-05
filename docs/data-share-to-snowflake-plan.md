@@ -1,84 +1,68 @@
-# Databricks → Snowflake Data Share (Orchestrated by Backend)
+# Orchestrated Databricks-Snowflake Sync Plan (Instance Profile Access)
 
 ## Overview
 
-This architecture uses the application **Backend** as the central orchestrator to manage the data transfer from Databricks to Snowflake. Instead of relying on decoupled schedules or complex event triggers, the Backend explicitly triggers the export from Databricks, waits for completion, and then triggers the import into Snowflake.
+A backend-controlled data sync that allows users to manually trigger and monitor data transfers from Databricks to Snowflake.
+
+**PoC Optimizations:**
+- **Polling:** Increased interval to **30s-60s** to minimize API calls.
+- **Data Volume:** Source query limited (e.g. `LIMIT 1000`) to reduce egress/ingress costs.
+- **Retries:** No automatic retries; Fail-fast strategy.
+- **State:** In-memory persistence for run history (resets on server restart).
+- **Access Mode:** Uses **AWS Instance Profiles** (Legacy Mode) instead of Unity Catalog for S3 access.
 
 ## Architecture Flow
 
-1.  **User Action**: User clicks "Sync Data" in the Webapp.
-2.  **Backend (Export)**:
-    *   Calls Databricks Jobs API (`run-now`) to execute the SQL-based export job.
-    *   Job writes Parquet files to `s3://databricks-snowflake-share/dataset/`.
-    *   Backend polls Databricks API until job status is `SUCCESS`.
-3.  **Backend (Import)**:
-    *   Connects to Snowflake via Node.js driver.
-    *   Executes `COPY INTO` command to load data from the S3 stage into the target table.
-    *   Verifies the load (optional row count check).
-4.  **Feedback**: Backend returns success to Frontend; User sees "Sync Complete".
+1.  **User Action**: User clicks "Sync Data" in Webapp.
+2.  **Backend (Async Orchestrator)**:
+    *   Creates `SyncRun` (PENDING).
+    *   Returns `run_id` immediately.
+    *   **Background**:
+        1.  **Export**: Trigger Databricks Job with `run_id` param.
+            *   Job writes to `s3://databricks-snowflake-share/runs/<run_id>/` (Authenticated via Instance Profile).
+        2.  **Poll**: Check Databricks status every **30-60s** (Timeout: 30m).
+        3.  **Import**: Connect to Snowflake -> `COPY INTO` from S3 path.
+        4.  **Complete**: Update status to SUCCESS/FAILED.
+3.  **Frontend**: Polls backend every **5s** for status updates.
 
 ## Implementation Steps
 
-### 1) Infrastructure Setup [COMPLETED]
+### 1) Infrastructure Updates (Databricks)
+*   **S3 Access**: Configure the SQL Warehouse with an **AWS Instance Profile** that has S3 Read/Write permissions.
+*   **Job SQL**: Update the Databricks Job SQL to accept `${run_id}` and limit data size.
+    ```sql
+    COPY INTO 's3://databricks-snowflake-share/runs/${run_id}/'
+    FROM (
+      SELECT * FROM samples.accuweather.forecast_daily_calendar_imperial
+      WHERE date >= '2024-01-01' -- Filter for PoC
+      LIMIT 1000                 -- Hard limit for PoC
+    )
+    FILEFORMAT = PARQUET
+    OVERWRITE = TRUE;
+    ```
 
-*   **S3 Bucket**: `databricks-snowflake-share`.
-*   **AWS IAM**:
-    *   Role for Databricks (Unity Catalog) to Write to S3.
-    *   Role for Snowflake (Storage Integration) to Read from S3.
-*   **Databricks**:
-    *   Storage Credential + External Location configured.
-    *   **Export Job** created (Task Type: SQL) -> Exports to S3.
+### 2) Backend Data Model (`sync_runs`)
+*   **Action**: Create a simple in-memory store in `backend/src/orchestrator/syncStore.ts`.
+    *   `SyncRun`: `{ id: string, status: string, logs: string[], createdAt: Date }`
 
-### 2) Backend Logic (Orchestrator) [IN PROGRESS]
+### 3) Backend Integrations
+*   **Snowflake**:
+    *   Install `snowflake-sdk`.
+    *   Create `backend/src/snowflake/snowflakeService.ts`.
+    *   Implement `loadData(runId)` using the `COPY INTO` command.
+*   **Orchestrator**:
+    *   Create `backend/src/orchestrator/syncService.ts`.
+    *   Implement `startSync()` and polling logic.
 
-*   **Databricks Service**:
-    *   `triggerJob(jobId)`: Starts the export.
-    *   `waitForJob(runId)`: Polls status.
-*   **Snowflake Service**:
-    *   `connect()`: Establishes connection using private key or password.
-    *   `loadData()`: Runs the `COPY INTO` command.
+### 4) API & Frontend
+*   **API**:
+    *   `POST /api/sync`: Start new sync.
+    *   `GET /api/sync`: List recent runs.
+    *   `GET /api/sync/:id`: Get details for one run.
+*   **Frontend**:
+    *   Update `DataShareManager.tsx` to use new endpoints and show run history.
 
-### 3) Snowflake Configuration [PENDING]
-
-We need to ensure the destination table and stage exist.
-
-```sql
--- 1. Storage Integration (One-time setup by Admin)
--- (Already done in Step 1 of previous plan)
-
--- 2. Create Stage
-CREATE OR REPLACE STAGE s3_share_stage
-  URL = 's3://databricks-snowflake-share/dataset/'
-  STORAGE_INTEGRATION = s3_share_int
-  FILE_FORMAT = (TYPE = PARQUET);
-
--- 3. Create Target Table
-CREATE OR REPLACE TABLE shared_forecasts (
-  date DATE,
-  weather_date DATE,
-  latitude DOUBLE,
-  longitude DOUBLE,
-  -- ... other columns matching source ...
-  forecast_temp_min_f DOUBLE,
-  forecast_temp_max_f DOUBLE
-);
-```
-
-### 4) The Import Command (Run by Backend)
-
-```sql
-COPY INTO shared_forecasts
-FROM @s3_share_stage
-FILE_FORMAT = (TYPE = PARQUET)
-MATCH_BY_COLUMN_NAME = CASE_INSENSITIVE
-ON_ERROR = 'ABORT_STATEMENT';
-```
-
-*Note: `MATCH_BY_COLUMN_NAME` is great for Parquet when schemas match.*
-
-## Security Considerations
-
-*   **Backend**: Holds the Snowflake credentials (env vars).
-*   **Databricks**: Accesses S3 via Unity Catalog (no keys in code).
-*   **Snowflake**: Accesses S3 via Storage Integration (no keys in code).
-*   **Network**: Traffic flows from Databricks -> S3 -> Snowflake. Backend only sends control signals (commands).
+## Security
+*   Snowflake credentials stored in `.env`.
+*   Databricks access via **AWS Instance Profile** (No keys in code).
+*   S3 access via IAM Roles.
