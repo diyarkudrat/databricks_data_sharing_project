@@ -122,6 +122,15 @@ export interface RunStatus {
   };
 }
 
+export interface SyncRun {
+  id: string;
+  status: 'PENDING' | 'EXPORTING' | 'IMPORTING' | 'COMPLETED' | 'FAILED';
+  databricksRunId?: number;
+  logs: string[];
+  createdAt: string;
+  completedAt?: string;
+}
+
 export async function triggerJob(jobId: string): Promise<JobRunResult> {
   const res = await fetch(`${BACKEND_URL}/api/jobs/${jobId}/run`, {
     method: 'POST',
@@ -148,4 +157,34 @@ export async function getJobRunStatus(runId: string): Promise<RunStatus> {
 
   const data = await res.json();
   return data.status as RunStatus;
+}
+
+export async function startSync(): Promise<{ runId: string }> {
+  const res = await fetch(`${BACKEND_URL}/api/sync`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+  });
+
+  if (!res.ok) {
+    throw new Error(`Failed to start sync: ${res.status}`);
+  }
+  return res.json();
+}
+
+export async function fetchSyncRuns(): Promise<SyncRun[]> {
+  const res = await fetch(`${BACKEND_URL}/api/sync`, { cache: 'no-store' });
+  if (!res.ok) {
+    throw new Error(`Failed to fetch sync runs: ${res.status}`);
+  }
+  const data = await res.json();
+  return data.runs ?? [];
+}
+
+export async function fetchSyncRun(id: string): Promise<SyncRun> {
+  const res = await fetch(`${BACKEND_URL}/api/sync/${id}`, { cache: 'no-store' });
+  if (!res.ok) {
+    throw new Error(`Failed to fetch sync run: ${res.status}`);
+  }
+  const data = await res.json();
+  return data.run;
 }

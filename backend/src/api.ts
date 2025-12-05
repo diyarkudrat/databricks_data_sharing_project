@@ -6,6 +6,8 @@ import { listTables } from './databricks/tablesService';
 import { listSampleSchemas } from './databricks/samplesService';
 import { listCatalogs } from './databricks/catalogsService';
 import { triggerJob, getRunStatus } from './databricks/jobsService';
+import { startSync } from './orchestrator/syncService';
+import { syncStore } from './orchestrator/syncStore';
 
 export const apiRouter = express.Router();
 
@@ -167,5 +169,37 @@ apiRouter.get('/jobs/runs/:runId', async (req, res) => {
     return res.json({ status });
   } catch (err) {
     return handleApiError(res, err, 'JOB_STATUS_FAILED', `Failed to get status for run ${runId}`);
+  }
+});
+
+// Sync Endpoints
+apiRouter.post('/sync', async (_req, res) => {
+  try {
+    const runId = await startSync();
+    return res.json({ runId });
+  } catch (err) {
+    return handleApiError(res, err, 'SYNC_START_FAILED', 'Failed to start sync process');
+  }
+});
+
+apiRouter.get('/sync', async (_req, res) => {
+  try {
+    const runs = syncStore.listRuns();
+    return res.json({ runs });
+  } catch (err) {
+    return handleApiError(res, err, 'SYNC_LIST_FAILED', 'Failed to list sync runs');
+  }
+});
+
+apiRouter.get('/sync/:id', async (req, res) => {
+  const { id } = req.params;
+  try {
+    const run = syncStore.getRun(id);
+    if (!run) {
+      return res.status(404).json({ error: { code: 'NOT_FOUND', message: 'Sync run not found' } });
+    }
+    return res.json({ run });
+  } catch (err) {
+    return handleApiError(res, err, 'SYNC_GET_FAILED', `Failed to get sync run ${id}`);
   }
 });

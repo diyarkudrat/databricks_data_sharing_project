@@ -1,7 +1,7 @@
 import { fetchWarehouses } from "@/lib/backend";
 import type { Warehouse } from "@/types/warehouses";
 import { QueryRunner } from "@/components/QueryRunner";
-import { DataShareManager } from "@/components/DataShareManager";
+import Link from "next/link";
 
 export default async function Home() {
   let warehouses: Warehouse[] = [];
@@ -66,7 +66,18 @@ export default async function Home() {
         {/* AccuWeather sample data link removed as part of simplifying the MVP UI. */}
       </section>
 
-      <DataShareManager />
+      <section className="w-full max-w-xl mt-6 p-6 bg-white rounded-lg shadow-sm dark:bg-zinc-900 flex items-center justify-between">
+        <div>
+          <h2 className="text-lg font-semibold text-zinc-900 dark:text-zinc-50">Data Synchronization</h2>
+          <p className="text-sm text-zinc-600 dark:text-zinc-400">Manage Databricks to Snowflake exports.</p>
+        </div>
+        <Link 
+          href="/sync"
+          className="rounded-md bg-indigo-600 px-4 py-2 text-sm font-semibold text-white shadow-sm hover:bg-indigo-500"
+        >
+          Go to Sync Manager →
+        </Link>
+      </section>
 
       <QueryRunner />
     </main>
