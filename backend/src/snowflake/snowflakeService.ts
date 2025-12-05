@@ -15,6 +15,10 @@ const connectionOptions = {
   role: process.env.SNOWFLAKE_ROLE || '',
 };
 
+// Allow configuring the stage (fully qualified or simple name). Default matches previous behavior.
+const stageName = (process.env.SNOWFLAKE_STAGE || 'S3_SHARE_STAGE').replace(/^@/, '');
+const targetDatabase = process.env.SNOWFLAKE_DATABASE || 'SNOWFLAKE_LEARNING_DB';
+
 function getConnection(): snowflake.Connection {
   return snowflake.createConnection(connectionOptions);
 }
@@ -63,8 +67,37 @@ async function executeQuery(sqlText: string, binds: any[] = []): Promise<any[]> 
 export async function loadData(runId: string): Promise<void> {
   console.log(`[Snowflake] Starting load for run ${runId}...`);
 
+  // Derive a schema name from the run id (sanitize to valid identifier); fallback to configured schema/public if runId missing
+  const sanitizedRunId = (runId || '').trim();
+  const runSchema = sanitizedRunId
+    ? `run_${sanitizedRunId.replace(/[^A-Za-z0-9_]/g, '_')}`
+    : (connectionOptions.schema || 'PUBLIC');
+  const fqTable = `${targetDatabase}.${runSchema}.shared_forecasts`;
+  const stagePath = sanitizedRunId
+    ? `@${stageName}/runs/run_id=${sanitizedRunId}/`
+    : `@${stageName}/runs/`;
+
+  // 0. Ensure run-specific schema exists (idempotent)
+  const createSchemaSql = `CREATE SCHEMA IF NOT EXISTS ${targetDatabase}.${runSchema}`;
+  await executeQuery(createSchemaSql);
+
+  // 0. Ensure target table exists (idempotent)
+  const createTableSql = `
+    CREATE TABLE IF NOT EXISTS ${fqTable} (
+      date DATE,
+      city_name STRING,
+      latitude DOUBLE,
+      longitude DOUBLE,
+      degree_days_cooling DOUBLE,
+      humidity_relative_avg DOUBLE,
+      cloud_cover_perc_avg DOUBLE,
+      _sync_run_id STRING
+    )
+  `;
+  await executeQuery(createTableSql);
+
   // 1. Cleanup (Idempotency)
-  const deleteSql = `DELETE FROM shared_forecasts WHERE _sync_run_id = ?`;
+  const deleteSql = `DELETE FROM ${fqTable} WHERE _sync_run_id = ?`;
   await executeQuery(deleteSql, [runId]);
   console.log(`[Snowflake] Cleaned up existing data for ${runId}`);
 
@@ -72,7 +105,7 @@ export async function loadData(runId: string): Promise<void> {
   // Note: Binds don't work well inside COPY INTO paths in some drivers, 
   // so we safely inject the runId into the string since it's a trusted UUID.
   const copySql = `
-    COPY INTO shared_forecasts
+    COPY INTO ${fqTable}
     FROM (
       SELECT 
         $1:date, 
@@ -83,7 +116,7 @@ export async function loadData(runId: string): Promise<void> {
         $1:humidity_relative_avg,
         $1:cloud_cover_perc_avg,
         '${runId}' as _sync_run_id
-      FROM @s3_share_stage/runs/run_id=${runId}/
+      FROM ${stagePath}
     )
     FILE_FORMAT = (TYPE = PARQUET)
     ON_ERROR = 'ABORT_STATEMENT'
