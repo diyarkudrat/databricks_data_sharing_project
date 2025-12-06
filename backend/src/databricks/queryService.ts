@@ -95,6 +95,52 @@ export async function executeQuery(
   }
 }
 
+export async function describeTableColumns(table: string): Promise<Column[]> {
+  const result = await executeQuery(`SHOW COLUMNS IN ${table}`);
+
+  if (!result.rows.length) {
+    throw new Error(`No columns returned for table ${table}`);
+  }
+
+  const lowerNames = result.columns.map((c) => c.name.toLowerCase());
+  const nameIdx =
+    lowerNames.findIndex((n) => n === 'col_name' || n === 'column_name' || n === 'name') ?? 0;
+  const typeIdx =
+    lowerNames.findIndex((n) => n === 'data_type' || n === 'type' || n === 'col_type') ?? 1;
+  const nullableIdx = lowerNames.findIndex((n) => n === 'nullable');
+
+  return result.rows.map((row, idx) => {
+    if (!Array.isArray(row)) {
+      throw new Error(`Unexpected row format for SHOW COLUMNS in ${table} at row ${idx}`);
+    }
+    const name = String(row[nameIdx] ?? '').trim();
+    const type = String(row[typeIdx] ?? '').trim() || 'string';
+    const nullable =
+      nullableIdx >= 0 && nullableIdx < row.length ? Boolean(row[nullableIdx]) : null;
+    return { name, type, nullable };
+  });
+}
+
+export async function inferColumnsFromQuery(sql: string): Promise<Column[]> {
+  // Limit 0 to fetch schema only
+  const wrapped = `SELECT * FROM (${sql}) AS t LIMIT 0`;
+  const result = await executeQuery(wrapped);
+  return result.columns;
+}
+
+export async function countRowsForQuery(sql: string): Promise<number> {
+  const wrapped = `SELECT COUNT(*) AS cnt FROM (${sql}) AS t`;
+  const result = await executeQuery(wrapped);
+  if (!result.rows.length) return 0;
+  const row = result.rows[0];
+  if (Array.isArray(row)) {
+    return Number(row[0] ?? 0);
+  }
+  const obj = row as any;
+  const key = Object.keys(obj)[0];
+  return Number(obj[key] ?? 0);
+}
+
 /**
  * Helper to normalize Databricks driver results into our standard QueryResult.
  * Handles both standard (array of arrays) and fallback (array of objects) formats.

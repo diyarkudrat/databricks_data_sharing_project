@@ -8,6 +8,7 @@ import { listCatalogs } from './databricks/catalogsService';
 import { triggerJob, getRunStatus } from './databricks/jobsService';
 import { startSync } from './orchestrator/syncService';
 import { syncStore } from './orchestrator/syncStore';
+import type { SyncStartRequest } from './types';
 
 export const apiRouter = express.Router();
 
@@ -173,9 +174,20 @@ apiRouter.get('/jobs/runs/:runId', async (req, res) => {
 });
 
 // Sync Endpoints
-apiRouter.post('/sync', async (_req, res) => {
+apiRouter.post('/sync', async (req, res) => {
   try {
-    const runId = await startSync();
+    const payload = (req.body ?? {}) as SyncStartRequest;
+    const { sql, sourceTable } = payload;
+
+    if (typeof sql !== 'string' || !sql.trim()) {
+      const error: ApiError = {
+        code: 'INVALID_REQUEST',
+        message: 'sql is required to start sync and must be a non-empty string.',
+      };
+      return res.status(400).json({ error });
+    }
+
+    const runId = await startSync({ sql, sourceTable });
     return res.json({ runId });
   } catch (err) {
     return handleApiError(res, err, 'SYNC_START_FAILED', 'Failed to start sync process');

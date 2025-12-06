@@ -3,12 +3,22 @@
 import { useState, useEffect } from "react";
 import { startSync, fetchSyncRun, fetchSyncRuns, SyncRun } from "@/lib/backend";
 
-export function DataShareManager() {
+interface DataShareManagerProps {
+  sql: string | null;
+  sourceTable?: string | null;
+}
+
+export function DataShareManager({ sql, sourceTable: sourceTableProp }: DataShareManagerProps) {
   const [activeRunId, setActiveRunId] = useState<string | null>(null);
   const [activeRun, setActiveRun] = useState<SyncRun | null>(null);
   const [recentRuns, setRecentRuns] = useState<SyncRun[]>([]);
   const [isStarting, setIsStarting] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [sourceTable, setSourceTable] = useState<string>(sourceTableProp || "");
+
+  useEffect(() => {
+    setSourceTable(sourceTableProp || "");
+  }, [sourceTableProp]);
 
   // Initial load of history
   useEffect(() => {
@@ -53,8 +63,14 @@ export function DataShareManager() {
     setError(null);
     setActiveRun(null);
 
+    if (!sql || !sql.trim()) {
+      setError("SQL is required to start sync.");
+      setIsStarting(false);
+      return;
+    }
+
     try {
-      const { runId } = await startSync();
+      const { runId } = await startSync({ sql, sourceTable: sourceTable.trim() || undefined });
       setActiveRunId(runId);
       // Refresh list immediately to show the new pending run
       fetchSyncRuns().then(setRecentRuns).catch(console.error);
@@ -80,11 +96,33 @@ export function DataShareManager() {
         </div>
         <button
           onClick={handleRun}
-          disabled={isRunning || isStarting}
+          disabled={isRunning || isStarting || !sql || !sql.trim()}
           className="rounded-md bg-indigo-600 px-4 py-2 text-sm font-semibold text-white shadow-sm hover:bg-indigo-500 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-indigo-600 disabled:opacity-50 disabled:cursor-not-allowed"
         >
           {isStarting ? "Starting..." : isRunning ? "Syncing..." : "Start Sync"}
         </button>
+      </div>
+
+      <div className="mb-4 space-y-2">
+        <div className="rounded-md border border-zinc-200 bg-zinc-50 p-3 text-xs text-zinc-700 dark:border-zinc-700 dark:bg-zinc-900 dark:text-zinc-200">
+          <p className="font-semibold mb-1">SQL to export</p>
+          <pre className="whitespace-pre-wrap break-words font-mono text-[11px] text-zinc-800 dark:text-zinc-100">
+            {sql && sql.trim().length > 0 ? sql : "No SQL provided from editor."}
+          </pre>
+        </div>
+        <label className="block text-xs font-semibold text-zinc-700 dark:text-zinc-200">
+          Source table (optional, for schema inference)
+        </label>
+        <input
+          value={sourceTable}
+          onChange={(e) => setSourceTable(e.target.value)}
+          className="w-full rounded-md border border-zinc-300 bg-white px-2 py-1 text-xs text-zinc-900 shadow-sm outline-none focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500 dark:border-zinc-700 dark:bg-zinc-950 dark:text-zinc-50"
+          placeholder="catalog.schema.table"
+        />
+        <p className="text-[0.7rem] text-zinc-500 dark:text-zinc-400">
+          The sync pipeline will export the query to S3 then load into Snowflake (table named by runId).
+          Providing a source table helps fetch column metadata; otherwise columns are inferred from the query.
+        </p>
       </div>
 
       {error && (

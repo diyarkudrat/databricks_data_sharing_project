@@ -1,10 +1,9 @@
 import snowflake from 'snowflake-sdk';
 import dotenv from 'dotenv';
+import type { Column } from '../types';
 
 dotenv.config();
 
-// Define the connection configuration
-// Ensure these are set in your backend/.env file
 const connectionOptions = {
   account: process.env.SNOWFLAKE_ACCOUNT || '',
   username: process.env.SNOWFLAKE_USERNAME || '',
@@ -15,18 +14,14 @@ const connectionOptions = {
   role: process.env.SNOWFLAKE_ROLE || '',
 };
 
-// Allow configuring the stage (fully qualified or simple name). Default matches previous behavior.
 const stageName = (process.env.SNOWFLAKE_STAGE || 'S3_SHARE_STAGE').replace(/^@/, '');
 const targetDatabase = process.env.SNOWFLAKE_DATABASE || 'SNOWFLAKE_LEARNING_DB';
+const targetSchema = process.env.SNOWFLAKE_SCHEMA || 'DIYARKUDRAT_LOAD_DATA_FROM_AMAZON_AWS';
 
 function getConnection(): snowflake.Connection {
   return snowflake.createConnection(connectionOptions);
 }
 
-/**
- * Executes a query using a dedicated connection.
- * Handles connection cycle (connect -> execute -> destroy).
- */
 async function executeQuery(sqlText: string, binds: any[] = []): Promise<any[]> {
   const connection = getConnection();
 
@@ -41,17 +36,16 @@ async function executeQuery(sqlText: string, binds: any[] = []): Promise<any[]> 
       conn.execute({
         sqlText,
         binds,
-        complete: (err, stmt, rows) => {
-          if (err) {
-            console.error('Failed to execute statement due to the following error: ' + err.message);
-            reject(err);
+        complete: (error, _stmt, rows) => {
+          if (error) {
+            console.error('Failed to execute statement due to the following error: ' + error.message);
+            reject(error);
           } else {
             resolve(rows || []);
           }
-          
-          // Always destroy connection after execution to prevent leaks in this simple model
-          connection.destroy((err) => {
-             if (err) console.error('Error destroying connection:', err);
+
+          connection.destroy((destroyErr) => {
+            if (destroyErr) console.error('Error destroying connection:', destroyErr);
           });
         },
       });
@@ -59,69 +53,118 @@ async function executeQuery(sqlText: string, binds: any[] = []): Promise<any[]> 
   });
 }
 
-/**
- * Idempotent Data Load:
- * 1. DELETE existing rows for this run_id (cleanup potential failed attempts)
- * 2. COPY INTO target table from S3 run-specific path
- */
-export async function loadData(runId: string): Promise<void> {
-  console.log(`[Snowflake] Starting load for run ${runId}...`);
+function sanitizeIdentifier(raw: string | undefined, fallback: string): string {
+  const safe = (raw || '')
+    .replace(/[^A-Za-z0-9_]/g, '_')
+    .replace(/_{2,}/g, '_')
+    .replace(/^_+|_+$/g, '')
+    .replace(/^(\d)/, '_$1');
+  return safe || fallback;
+}
 
-  // Derive a schema name from the run id (sanitize to valid identifier); fallback to configured schema/public if runId missing
-  const sanitizedRunId = (runId || '').trim();
-  const runSchema = sanitizedRunId
-    ? `run_${sanitizedRunId.replace(/[^A-Za-z0-9_]/g, '_')}`
-    : (connectionOptions.schema || 'PUBLIC');
-  const fqTable = `${targetDatabase}.${runSchema}.shared_forecasts`;
-  const stagePath = sanitizedRunId
-    ? `@${stageName}/runs/run_id=${sanitizedRunId}/`
-    : `@${stageName}/runs/`;
+function mapToSnowflakeType(rawType: string | undefined): string {
+  const t = (rawType || '').toLowerCase();
+  if (t.includes('int')) return 'NUMBER';
+  if (t.includes('decimal') || t.includes('numeric')) return 'NUMBER';
+  if (t.includes('double')) return 'DOUBLE';
+  if (t.includes('float') || t.includes('real')) return 'FLOAT';
+  if (t.includes('bool')) return 'BOOLEAN';
+  if (t.includes('date')) return 'DATE';
+  if (t.includes('timestamp')) return 'TIMESTAMP_NTZ';
+  if (t.includes('time')) return 'TIME';
+  if (t.includes('binary')) return 'BINARY';
+  if (t.includes('variant') || t.includes('json')) return 'VARIANT';
+  if (t.includes('map') || t.includes('array') || t.includes('struct')) return 'VARIANT';
+  return 'STRING';
+}
 
-  // 0. Ensure run-specific schema exists (idempotent)
-  const createSchemaSql = `CREATE SCHEMA IF NOT EXISTS ${targetDatabase}.${runSchema}`;
-  await executeQuery(createSchemaSql);
+function normalizeColumns(columns: Column[]): { name: string; type: string; rawName: string }[] {
+  const seen = new Set<string>();
 
-  // 0. Ensure target table exists (idempotent)
-  const createTableSql = `
-    CREATE TABLE IF NOT EXISTS ${fqTable} (
-      date DATE,
-      city_name STRING,
-      latitude DOUBLE,
-      longitude DOUBLE,
-      degree_days_cooling DOUBLE,
-      humidity_relative_avg DOUBLE,
-      cloud_cover_perc_avg DOUBLE,
-      _sync_run_id STRING
-    )
-  `;
-  await executeQuery(createTableSql);
+  return columns.map((col, idx) => {
+    const rawName = col.name || `col_${idx + 1}`;
+    const base = sanitizeIdentifier(rawName, `col_${idx + 1}`);
+    let candidate = base;
+    let counter = 1;
+    while (seen.has(candidate)) {
+      counter += 1;
+      candidate = `${base}_${counter}`;
+    }
+    seen.add(candidate);
+    return { name: candidate, type: col.type || 'string', rawName };
+  });
+}
 
-  // 1. Cleanup (Idempotency)
-  const deleteSql = `DELETE FROM ${fqTable} WHERE _sync_run_id = ?`;
-  await executeQuery(deleteSql, [runId]);
-  console.log(`[Snowflake] Cleaned up existing data for ${runId}`);
+export async function loadExportedRun({
+  runId,
+  columns,
+}: {
+  runId: string;
+  columns: Column[];
+}): Promise<{ rowsLoaded: number; stageFilesCount: number; raw: any[] }> {
+  const sanitizedRunId = sanitizeIdentifier(runId, 'run');
+  const schema = `${targetDatabase}.${targetSchema}`;
+  const table = `${schema}.${sanitizedRunId}`;
+  const stagePath = `@${stageName}/runs/run_id=${runId}/`;
 
-  // 2. Load (COPY INTO)
-  // Note: Binds don't work well inside COPY INTO paths in some drivers, 
-  // so we safely inject the runId into the string since it's a trusted UUID.
+  const normalizedCols = normalizeColumns(columns);
+  const columnDefs = normalizedCols
+    .map((c) => `"${c.name}" ${mapToSnowflakeType(c.type)}`)
+    .join(', ');
+
+  await executeQuery(`CREATE SCHEMA IF NOT EXISTS ${schema}`);
+  await executeQuery(`CREATE OR REPLACE TABLE ${table} (${columnDefs})`);
+
+  const selectList = normalizedCols
+    .map((c, idx) => `${parquetFieldRef(c.rawName, idx)} AS "${c.name}"`)
+    .join(', ');
+
   const copySql = `
-    COPY INTO ${fqTable}
+    COPY INTO ${table}
     FROM (
-      SELECT 
-        $1:date, 
-        $1:city_name, 
-        $1:latitude, 
-        $1:longitude, 
-        $1:degree_days_cooling,
-        $1:humidity_relative_avg,
-        $1:cloud_cover_perc_avg,
-        '${runId}' as _sync_run_id
-      FROM ${stagePath}
+      SELECT ${selectList} FROM ${stagePath}
     )
     FILE_FORMAT = (TYPE = PARQUET)
     ON_ERROR = 'ABORT_STATEMENT'
   `;
-  
-  await executeQuery(copySql);
-  console.log(`[Snowflake] Successfully loaded data for ${runId}`);
+
+  const listResult = await executeQuery(`LIST ${stagePath}`);
+  const stageFilesCount = Array.isArray(listResult) ? listResult.length : 0;
+
+  const copyResult = await executeQuery(copySql);
+  const info = Array.isArray(copyResult) && copyResult.length > 0 ? (copyResult[0] as any) : {};
+  const rowsLoaded = Number(
+    info.rows_loaded ??
+      info.ROWS_LOADED ??
+      info['rows loaded'] ??
+      info['ROWS LOADED'] ??
+      info['rows_loaded'] ??
+      0,
+  );
+
+  let tableCount = -1;
+  try {
+    const countRows = await executeQuery(`SELECT COUNT(*) AS cnt FROM ${table}`);
+    if (Array.isArray(countRows) && countRows.length > 0) {
+      const row = countRows[0] as any;
+      tableCount =
+        Number(row.cnt ?? row.CNT ?? row['COUNT(*)'] ?? row['count(*)'] ?? row[0] ?? -1);
+    }
+  } catch (err) {
+    console.warn(`[Snowflake] Failed to count rows in ${table}:`, err);
+  }
+
+  console.log(
+    `[Snowflake] Loaded run ${runId} into ${table} (stage_files=${stageFilesCount}, rows_loaded=${rowsLoaded}, table_count=${tableCount})`,
+  );
+  return { rowsLoaded, stageFilesCount, raw: copyResult };
+}
+
+function parquetFieldRef(rawName: string, idx: number): string {
+  // Prefer name-based extraction; fallback to positional if name missing
+  const escaped = (rawName || '').replace(/"/g, '""');
+  if (escaped) {
+    return `$1:"${escaped}"`;
+  }
+  return `$1[${idx}]`;
 }

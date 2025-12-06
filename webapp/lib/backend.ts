@@ -159,10 +159,11 @@ export async function getJobRunStatus(runId: string): Promise<RunStatus> {
   return data.status as RunStatus;
 }
 
-export async function startSync(): Promise<{ runId: string }> {
+export async function startSync(payload: { sql: string; sourceTable?: string }): Promise<{ runId: string }> {
   const res = await fetch(`${BACKEND_URL}/api/sync`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(payload),
   });
 
   if (!res.ok) {

@@ -1,13 +1,19 @@
 'use client';
 
 import React from 'react';
-import { executeSql, fetchTables, fetchSampleSchemas, fetchCatalogs } from '@/lib/backend';
+import { executeSql, fetchTables, fetchSampleSchemas } from '@/lib/backend';
 import type { QueryResult, TableInfo } from '@/types/query';
 import { QueryEditor } from '@/components/QueryEditor';
 import { ResultsTable } from '@/components/ResultsTable';
 import { ConnectionStatus, type ConnectionState } from '@/components/ConnectionStatus';
 
-export function QueryRunner() {
+interface QueryRunnerProps {
+  sqlValue?: string;
+  onSqlChange?: (sql: string) => void;
+  onTableSelected?: (table: string | null) => void;
+}
+
+export function QueryRunner({ sqlValue, onSqlChange, onTableSelected }: QueryRunnerProps) {
   const [sql, setSql] = React.useState<string>('SELECT 1');
   const [result, setResult] = React.useState<QueryResult | null>(null);
   const [isRunning, setIsRunning] = React.useState(false);
@@ -22,6 +28,14 @@ export function QueryRunner() {
   const [tables, setTables] = React.useState<TableInfo[]>([]);
   const [isLoadingTables, setIsLoadingTables] = React.useState(false);
   const [tablesError, setTablesError] = React.useState<string | null>(null);
+
+  const currentSql = sqlValue ?? sql;
+
+  React.useEffect(() => {
+    if (typeof sqlValue === 'string') {
+      setSql(sqlValue);
+    }
+  }, [sqlValue]);
 
   // NOTE:
   // We currently focus the UI on the well-known `samples` catalog. The backend
@@ -106,16 +120,15 @@ export function QueryRunner() {
   }, [selectedDatabase]);
 
   const handleRun = async () => {
-    if (!sql.trim()) {
+    if (!currentSql.trim()) {
       setError('Please enter a SQL query.');
       return;
     }
 
     setIsRunning(true);
     setError(null);
-
     try {
-      const res = await executeSql(sql);
+      const res = await executeSql(currentSql);
       setResult(res);
       setConnectionState('ok');
     } catch (err) {
@@ -156,6 +169,7 @@ export function QueryRunner() {
               setTablesError(null);
               setError(null);
               setResult(null);
+              if (onTableSelected) onTableSelected(null);
             }}
           >
             <option value="" disabled>
@@ -194,6 +208,8 @@ export function QueryRunner() {
               setSql(`SELECT * FROM samples.${selectedDatabase}.${tableName} LIMIT 100`);
               setError(null);
               setResult(null);
+              if (onSqlChange) onSqlChange(`SELECT * FROM samples.${selectedDatabase}.${tableName} LIMIT 100`);
+              if (onTableSelected) onTableSelected(`samples.${selectedDatabase}.${tableName}`);
             }}
             defaultValue=""
           >
@@ -225,8 +241,11 @@ export function QueryRunner() {
       </div>
 
       <QueryEditor
-        value={sql}
-        onChange={setSql}
+        value={currentSql}
+        onChange={(val) => {
+          setSql(val);
+          if (onSqlChange) onSqlChange(val);
+        }}
         onSubmit={handleRun}
         isSubmitting={isRunning}
         placeholder="SELECT 1"
@@ -239,6 +258,7 @@ export function QueryRunner() {
       )}
 
       <ResultsTable result={result} />
+
     </section>
   );
 }

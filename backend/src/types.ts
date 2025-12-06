@@ -57,3 +57,37 @@ export interface TablesResponse {
 export interface SampleSchemasResponse {
   schemas: string[];
 }
+
+export interface SyncStartRequest {
+  sql: string;
+  sourceTable?: string;
+}
+
+export interface SyncStartResponse {
+  runId: string;
+}
+
+export interface QuerySyncRequest {
+  columns: Column[];
+  rows: unknown[][];
+  /**
+   * Optional target table name (without schema/database). Defaults to "query_results".
+   */
+  targetTable?: string;
+  /**
+   * Optional target schema. Defaults to SNOWFLAKE_SCHEMA env or PUBLIC.
+   */
+  targetSchema?: string;
+  /**
+   * If true, the target table will be truncated before insert. Defaults to true.
+   */
+  truncate?: boolean;
+}
+
+export interface QuerySyncResponse {
+  database: string;
+  schema: string;
+  table: string;
+  rowCount: number;
+  message?: string;
+}
